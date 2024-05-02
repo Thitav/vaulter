@@ -1,5 +1,6 @@
 [package]
-name = "rust-vault"
+name = "vaulter"
+description = "Secure AEAD file encryption utility"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,11 +3,12 @@ use structopt::StructOpt;
 mod crypto;
 mod vault;
 
-const CHUNK_SIZE: usize = 3;
+const CHUNK_SIZE: usize = 1024;
 
 #[derive(StructOpt)]
-#[structopt(name = "example", about = "An example of StructOpt usage.")]
+#[structopt(name = "Vaulter", about = "Secure AEAD file encryption utility")]
 enum Vaulter {
+    #[structopt(about = "Encrypts a file")]
     Lock {
         #[structopt(name = "input file")]
         path_fin: String,
@@ -15,6 +16,7 @@ enum Vaulter {
         path_fout: String,
         key: String,
     },
+    #[structopt(about = "Decrypts a file")]
     Unlock {
         #[structopt(name = "input file")]
         path_fin: String,
