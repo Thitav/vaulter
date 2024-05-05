@@ -5,27 +5,23 @@ Secure AEAD file encryption utility.
 ## Installation
 
 Install [Rust](https://www.rust-lang.org/tools/install) and run:
-
 ```bash
 git clone https://github.com/Thitav/vaulter
 cd vaulter
-cargo build
+cargo install
 ```
 
 ## Usage
 
-```python
-import foobar
-
-# returns 'words'
-foobar.pluralize('word')
-
-# returns 'geese'
-foobar.pluralize('goose')
-
-# returns 'phenomenon'
-foobar.singularize('phenomena')
+Encrypt:
+```bash
+vaulter lock <input file> <output file> <key>
 ```
+Decrypt:
+```bash
+vaulter unlock <input file> <output file> <key>
+```
+Run `vaulter --help` for more information.
 
 ## License
 
