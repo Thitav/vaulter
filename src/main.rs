@@ -1,64 +1,63 @@
-use std::fs::File;
-use structopt::StructOpt;
+use clap::{Parser, ValueEnum};
+use clio::{Input, Output};
+
 mod crypto;
 mod vault;
 
-const CHUNK_SIZE: usize = 1024;
+const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
 
-#[derive(StructOpt)]
-#[structopt(name = "Vaulter", about = "Secure AEAD file encryption utility")]
-enum Vaulter {
-    #[structopt(about = "Encrypts a file")]
-    Lock {
-        #[structopt(name = "input file")]
-        path_fin: String,
-        #[structopt(name = "output file")]
-        path_fout: String,
-        key: String,
-    },
-    #[structopt(about = "Decrypts a file")]
-    Unlock {
-        #[structopt(name = "input file")]
-        path_fin: String,
-        #[structopt(name = "output file")]
-        path_fout: String,
-        key: String,
-    },
+#[derive(Parser)]
+#[command(name = "Vaulter", about = "Secure AEAD file encryption utility")]
+struct Cli {
+    #[arg(short, long, value_name = "mode", value_enum)]
+    mode: Modes,
+    #[arg(
+        short,
+        long,
+        value_name = "input file path",
+        help = "Input file, if not provided, stdin will be used",
+        default_value = "-"
+    )]
+    input: Input,
+    #[arg(
+        short,
+        long,
+        value_name = "output file path",
+        help = "Output file, if not provided, stdout will be used",
+        default_value = "-"
+    )]
+    output: Output,
+    #[arg(short, long, value_name = "key", help = "Encryption key")]
+    key: String,
+    #[arg(short, long, value_name = "size", help = "Chunk size in bytes", default_value_t=DEFAULT_CHUNK_SIZE)]
+    chunk_size: usize,
 }
 
-fn vault_lock(path_fin: &String, path_fout: &String, key: &[u8]) {
-    let file_in = File::open(path_fin).unwrap();
-    let file_out = File::create(path_fout).unwrap();
-    let file_size = usize::try_from(file_in.metadata().unwrap().len()).unwrap();
-
-    vault::buffer_encrypt(file_in, file_out, key, CHUNK_SIZE, file_size);
-}
-
-fn vault_unlock(path_fin: &String, path_fout: &String, key: &[u8]) {
-    let file_in = File::open(path_fin).unwrap();
-    let file_out = File::create(path_fout).unwrap();
-    let file_size = usize::try_from(file_in.metadata().unwrap().len()).unwrap();
-
-    vault::buffer_decrypt(file_in, file_out, key, CHUNK_SIZE, file_size);
+#[derive(ValueEnum, Clone)]
+enum Modes {
+    Lock,
+    Unlock,
 }
 
 fn main() {
-    let opt = Vaulter::from_args();
+    let cli = Cli::parse();
 
-    match opt {
-        Vaulter::Lock {
-            path_fin,
-            path_fout,
-            key,
-        } => {
-            vault_lock(&path_fin, &path_fout, key.as_bytes());
+    match cli.mode {
+        Modes::Lock => {
+            let mut chunk_size = cli
+                .input
+                .len()
+                .unwrap_or(cli.chunk_size as u64)
+                .try_into()
+                .unwrap();
+            if chunk_size > cli.chunk_size {
+                chunk_size = cli.chunk_size;
+            }
+
+            vault::buffer_encrypt(cli.input, cli.output, cli.key.as_bytes(), chunk_size);
         }
-        Vaulter::Unlock {
-            path_fin,
-            path_fout,
-            key,
-        } => {
-            vault_unlock(&path_fin, &path_fout, key.as_bytes());
+        Modes::Unlock => {
+            vault::buffer_decrypt(cli.input, cli.output, cli.key.as_bytes());
         }
     }
 }

@@ -74,7 +74,7 @@ pub fn aead_decrypt<'data>(
     data: &'data mut [u8],
     key: AeadKey,
     nonce_sequence: CounterNonceSequence,
-) -> Result<&mut [u8], error::Unspecified> {
+) -> Result<&'data mut [u8], error::Unspecified> {
     let unbound_key = aead::UnboundKey::new(&AES_256_GCM, &key).unwrap();
     let mut opening_key = aead::OpeningKey::new(unbound_key, nonce_sequence);
 

@@ -15,11 +15,11 @@ cargo install
 
 Encrypt:
 ```bash
-vaulter lock <input file> <output file> <key>
+vaulter -m lock -i <input file> -o <output file> -k <key>
 ```
 Decrypt:
 ```bash
-vaulter unlock <input file> <output file> <key>
+vaulter -m unlock -i <input file> -o <output file> -k <key>
 ```
 Run `vaulter --help` for more information.
 

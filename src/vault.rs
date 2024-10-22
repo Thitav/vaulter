@@ -1,92 +1,69 @@
-use crate::crypto::{self, SALT_LEN};
+use crate::crypto::{self};
 use ring::aead::chacha20_poly1305_openssh::TAG_LEN;
 use std::io::{BufReader, BufWriter, Read, Write};
 
-// IMPROVE THIS CODE, TOO REPETITIVE, OPTIMIZE IF POSSIBLE
-
-pub fn buffer_encrypt(
-    buf_in: impl Read,
-    buf_out: impl Write,
-    key: &[u8],
-    size_chunk: usize,
-    size_data: usize,
-) {
+pub fn buffer_encrypt(buf_in: impl Read, buf_out: impl Write, key: &[u8], chunk_size: usize) {
     let mut buf_reader = BufReader::new(buf_in);
     let mut buf_writer = BufWriter::new(buf_out);
-    let mut chunk = vec![0u8; size_chunk];
+    let mut chunk = vec![0u8; chunk_size];
 
     let salt = crypto::generate_salt().unwrap();
     buf_writer.write(&salt).unwrap();
+    buf_writer.write(&chunk_size.to_be_bytes()).unwrap();
+
     let dkey = crypto::derive_key(key, &salt);
+    let mut nchunk: usize = 0;
 
-    let nchunks = size_data / size_chunk;
-    for i in 0..nchunks {
+    loop {
+        let nread = buf_reader.read(&mut chunk).unwrap();
+        if nread == 0 {
+            break;
+        } else if nread != chunk_size {
+            chunk.resize(nread, 0);
+        }
+
         let mut nonce_sequence = crypto::CounterNonceSequence::new(&salt);
-        nonce_sequence.counter = u32::try_from(i).unwrap();
-
-        buf_reader.read(&mut chunk).unwrap();
+        nonce_sequence.counter = u32::try_from(nchunk).unwrap();
 
         let tag = crypto::aead_encrypt(&mut chunk, dkey, nonce_sequence).unwrap();
 
         buf_writer.write(&chunk).unwrap();
         buf_writer.write(tag.as_ref()).unwrap();
-    }
-
-    if size_data % size_chunk != 0 {
-        chunk.resize(size_data - (size_chunk * nchunks), 0);
-        buf_reader.read(&mut chunk).unwrap();
-
-        let mut nonce_sequence = crypto::CounterNonceSequence::new(&salt);
-        nonce_sequence.counter = u32::try_from(nchunks + 1).unwrap();
-
-        let tag = crypto::aead_encrypt(&mut chunk, dkey, nonce_sequence).unwrap();
-
-        buf_writer.write(&chunk).unwrap();
-        buf_writer.write(tag.as_ref()).unwrap();
+        nchunk += 1;
     }
 
     buf_writer.flush().unwrap();
 }
 
-pub fn buffer_decrypt(
-    buf_in: impl Read,
-    buf_out: impl Write,
-    key: &[u8],
-    size_chunk: usize,
-    size_data: usize,
-) {
-    let size_chunk = size_chunk + TAG_LEN;
-    let size_data = size_data - SALT_LEN;
-
+pub fn buffer_decrypt(buf_in: impl Read, buf_out: impl Write, key: &[u8]) {
     let mut buf_reader = BufReader::new(buf_in);
     let mut buf_writer = BufWriter::new(buf_out);
-    let mut chunk = vec![0u8; size_chunk];
 
     let mut salt = crypto::Salt::default();
     buf_reader.read(&mut salt).unwrap();
+    let mut chunk_size_bytes = [0u8; 8];
+    buf_reader.read(&mut chunk_size_bytes).unwrap();
+    let chunk_size = usize::from_be_bytes(chunk_size_bytes) + TAG_LEN;
+    let mut chunk = vec![0u8; chunk_size];
+
     let dkey = crypto::derive_key(key, &salt);
+    let mut nchunk: usize = 0;
 
-    let nchunks = size_data / size_chunk;
-    for i in 0..nchunks {
+    loop {
+        let nread = buf_reader.read(&mut chunk).unwrap();
+        if nread == 0 {
+            break;
+        } else if nread != chunk_size {
+            chunk.resize(nread, 0);
+        }
+
         let mut nonce_sequence = crypto::CounterNonceSequence::new(&salt);
-        nonce_sequence.counter = u32::try_from(i).unwrap();
+        nonce_sequence.counter = u32::try_from(nchunk).unwrap();
 
-        buf_reader.read(&mut chunk).unwrap();
         let data = crypto::aead_decrypt(&mut chunk, dkey, nonce_sequence).unwrap();
 
         buf_writer.write(&data).unwrap();
-    }
-
-    if size_data % size_chunk != 0 {
-        chunk.resize(size_data - (size_chunk * nchunks), 0);
-
-        let mut nonce_sequence = crypto::CounterNonceSequence::new(&salt);
-        nonce_sequence.counter = u32::try_from(nchunks + 1).unwrap();
-
-        buf_reader.read(&mut chunk).unwrap();
-        let data = crypto::aead_decrypt(&mut chunk, dkey, nonce_sequence).unwrap();
-
-        buf_writer.write(&data).unwrap();
+        nchunk += 1;
     }
 
     buf_writer.flush().unwrap();
